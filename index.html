@@ -595,6 +595,65 @@
         .hidden {
             display: none !important
         }
+
+        .solution-canvas-wrap {
+            width: 100%;
+            aspect-ratio: 1;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            cursor: grab;
+            overflow: hidden;
+            margin-bottom: 16px
+        }
+
+        .solution-canvas-wrap:active {
+            cursor: grabbing
+        }
+
+        .solution-canvas-wrap canvas {
+            width: 100%;
+            height: 100%
+        }
+
+        .solve-log {
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 160px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6
+        }
+
+        .solve-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px
+        }
+
+        .solve-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px
+        }
+
+        .solve-legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px
+        }
+
+        .modal.modal-lg {
+            min-width: 520px;
+            max-width: 680px
+        }
     </style>
 </head>
 
@@ -607,9 +666,12 @@
             <div class="mode-tab" data-mode="target" onclick="switchMode('target')">编辑目标</div>
         </div>
         <div class="header-right">
-            <button class="btn" onclick="importJSON()">📥 导入 JSON</button>
-            <button class="btn btn-primary" onclick="exportJSON()">📤 导出 JSON</button>
-            <button class="btn btn-success" onclick="exportAndSolve()">▶ 导出并求解</button>
+            <button class="btn" onclick="loadDefaultPuzzle()">📂 载入示例</button>
+            <button class="btn btn-danger" onclick="clearAllData()">🗑 清空全部</button>
+            <div class="separator" style="width:1px;height:24px;background:var(--border)"></div>
+            <button class="btn" onclick="importJSON()">📥 导入</button>
+            <button class="btn" onclick="exportJSON()">📤 导出</button>
+            <button class="btn btn-primary" onclick="solveInBrowser()" id="solveBtn">🔍 网页求解</button>
         </div>
     </div>
     <div class="main-layout">
@@ -702,6 +764,7 @@
         <div class="status-item" id="statusInfo"></div>
     </div>
 
+    <script src="solver.js"></script>
     <script>
         // ============================================================
         // 全局状态
@@ -741,7 +804,8 @@
             previewCanvas = document.getElementById('preview3dCanvas');
             previewCtx = previewCanvas.getContext('2d');
             initColorPalette();
-            addNewPiece();
+            // 载入默认示例谜题
+            loadDefaultPuzzle();
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             canvas.addEventListener('mousedown', onCanvasMouseDown);
@@ -1131,16 +1195,207 @@
             if (STATE.activePieceIndex >= 0) selectPiece(0);
         }
 
-        function exportAndSolve() {
+        // ============================================================
+        // 载入默认示例 / 清空全部
+        // ============================================================
+        function loadDefaultPuzzle() {
+            loadFromJSON(DEFAULT_PUZZLE);
+        }
+
+        function clearAllData() {
+            if (!confirm('确定清空所有积木和目标结构？')) return;
+            STATE.pieces = [];
+            STATE.targetCells = new Set();
+            STATE.activePieceIndex = -1;
+            STATE.currentLayer = 0;
+            STATE.gridSize = { x: 5, y: 5, z: 5 };
+            document.getElementById('gridX').value = 5;
+            document.getElementById('gridY').value = 5;
+            document.getElementById('gridZ').value = 5;
+            addNewPiece();
+            updateLayerDisplay(); renderPieceList(); calculateGridLayout(); updateStats(); render();
+        }
+
+        // ============================================================
+        // 网页端求解
+        // ============================================================
+        function solveInBrowser() {
             const data = buildJSONData();
             const pc = data.pieces.reduce((s, p) => s + p.cells.length, 0);
             if (data.target.cells.length === 0) { alert('请先编辑目标结构！'); return; }
-            if (pc === 0) { alert('请先编辑至少一块积木！'); return; }
-            if (pc !== data.target.cells.length && !confirm(`积木总格数 (${pc}) ≠ 目标格数 (${data.target.cells.length})，确定继续？`)) return;
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); a.download = 'puzzle_data.json'; a.click();
-            const ov = document.createElement('div'); ov.className = 'modal-overlay';
-            ov.innerHTML = `<div class="modal"><h2>▶ 导出并求解</h2><p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">已下载 <code>puzzle_data.json</code>，请将它放到积木求解目录下，然后运行：</p><textarea class="json-output" readonly style="height:60px;color:#2ecc71">python solve_from_json.py puzzle_data.json</textarea><p style="margin-top:12px;color:var(--text-secondary);font-size:12px">积木数: ${data.pieces.length} | 积木总格数: ${pc} | 目标格数: ${data.target.cells.length}</p><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">关闭</button></div></div>`;
+            if (data.pieces.length === 0 || pc === 0) { alert('请先编辑至少一块积木！'); return; }
+
+            const btn = document.getElementById('solveBtn');
+            btn.textContent = '⏳ 求解中...';
+            btn.disabled = true;
+
+            // 用 setTimeout 让 UI 有机会更新
+            setTimeout(() => {
+                try {
+                    const result = solvePuzzle(
+                        data.pieces.map(p => ({ name: p.name, color: p.color, cells: p.cells })),
+                        data.target.cells
+                    );
+                    showSolutionModal(result, data.pieces);
+                } catch (e) {
+                    alert('求解出错: ' + e.message);
+                } finally {
+                    btn.textContent = '🔍 网页求解';
+                    btn.disabled = false;
+                }
+            }, 50);
+        }
+
+        // ============================================================
+        // 求解结果展示 — 3D 彩色可旋转视图
+        // ============================================================
+        function showSolutionModal(result, pieceDefs) {
+            const ov = document.createElement('div');
+            ov.className = 'modal-overlay';
+            ov.onclick = e => { if (e.target === ov) ov.remove(); };
+
+            let legendHtml = '';
+            let canvasHtml = '';
+            if (result.success) {
+                // 图例
+                legendHtml = '<div class="solve-legend">';
+                for (let i = 0; i < pieceDefs.length; i++) {
+                    if (result.solution[i]) {
+                        legendHtml += `<div class="solve-legend-item"><div class="solve-legend-dot" style="background:${pieceDefs[i].color}"></div>${pieceDefs[i].name}</div>`;
+                    }
+                }
+                legendHtml += '</div>';
+                canvasHtml = '<div class="solution-canvas-wrap"><canvas id="solutionCanvas"></canvas></div>';
+            }
+
+            ov.innerHTML = `<div class="modal modal-lg">
+                <h2>${result.success ? '✅ 求解成功!' : '❌ 无解'}</h2>
+                ${canvasHtml}
+                ${legendHtml}
+                <div class="solve-log">${result.log.join('\n')}</div>
+                <div class="modal-actions">
+                    <button class="btn" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+                    ${result.success ? '<button class="btn btn-primary" onclick="downloadSolutionJSON()">💾 保存结果</button>' : ''}
+                </div>
+            </div>`;
             document.body.appendChild(ov);
+
+            if (result.success) {
+                // 保存当前结果供下载
+                window._lastSolution = result;
+                window._lastPieceDefs = pieceDefs;
+                initSolution3DCanvas(result.solution, pieceDefs);
+            }
+        }
+
+        function downloadSolutionJSON() {
+            if (!window._lastSolution) return;
+            const out = {};
+            for (const [idx, cells] of Object.entries(window._lastSolution.solution)) {
+                const name = window._lastPieceDefs[idx]?.name || `P${idx}`;
+                out[name] = cells;
+            }
+            const json = JSON.stringify(out, null, 2);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+            a.download = 'solution.json'; a.click();
+        }
+
+        function initSolution3DCanvas(solution, pieceDefs) {
+            const cvs = document.getElementById('solutionCanvas');
+            if (!cvs) return;
+            const wrap = cvs.parentElement;
+            cvs.width = wrap.clientWidth * devicePixelRatio;
+            cvs.height = wrap.clientHeight * devicePixelRatio;
+            cvs.style.width = wrap.clientWidth + 'px';
+            cvs.style.height = wrap.clientHeight + 'px';
+            const sCtx = cvs.getContext('2d');
+            sCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+            let solRotX = -0.5, solRotY = 0.6;
+            let solDragging = false, solDragX = 0, solDragY = 0;
+
+            // 收集所有格子确定边界
+            let allCells = [];
+            for (const [idx, cells] of Object.entries(solution)) {
+                for (const c of cells) allCells.push(c);
+            }
+            let maxX = 0, maxY = 0, maxZ = 0;
+            for (const [x, y, z] of allCells) { maxX = Math.max(maxX, x + 1); maxY = Math.max(maxY, y + 1); maxZ = Math.max(maxZ, z + 1); }
+
+            function drawSolution() {
+                const w = cvs.clientWidth, h = cvs.clientHeight;
+                sCtx.clearRect(0, 0, w, h);
+                sCtx.fillStyle = '#0a0a14'; sCtx.fillRect(0, 0, w, h);
+
+                const maxDim = Math.max(maxX, maxY, maxZ);
+                const scale = Math.min(w, h) / (maxDim * 2.2);
+                const cx = maxX / 2, cy = maxY / 2, cz = maxZ / 2;
+
+                function project(x, y, z) {
+                    let dx = x - cx, dy = y - cy, dz = z - cz;
+                    let nx = dx * Math.cos(solRotY) + dz * Math.sin(solRotY);
+                    let nz = -dx * Math.sin(solRotY) + dz * Math.cos(solRotY);
+                    dx = nx; dz = nz;
+                    let ny = dy * Math.cos(solRotX) - dz * Math.sin(solRotX);
+                    nz = dy * Math.sin(solRotX) + dz * Math.cos(solRotX);
+                    return { x: dx * scale + w / 2, y: -ny * scale + h / 2, z: nz };
+                }
+
+                // 全局格子集（检查遮挡）
+                const globalSet = new Set(allCells.map(c => c.join(',')));
+                function hasCell(x, y, z) { return globalSet.has(`${x},${y},${z}`); }
+
+                const faces = [];
+                const dirs = [
+                    { dx: 0, dy: 0, dz: 1, verts: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], shade: 1.0 },
+                    { dx: 0, dy: 0, dz: -1, verts: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], shade: 0.5 },
+                    { dx: 0, dy: 1, dz: 0, verts: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], shade: 0.7 },
+                    { dx: 0, dy: -1, dz: 0, verts: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], shade: 0.8 },
+                    { dx: 1, dy: 0, dz: 0, verts: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]], shade: 0.65 },
+                    { dx: -1, dy: 0, dz: 0, verts: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], shade: 0.75 },
+                ];
+
+                for (const [idx, cells] of Object.entries(solution)) {
+                    const color = pieceDefs[idx]?.color || '#888';
+                    const rgb = hexToRgb(color);
+                    for (const [bx, by, bz] of cells) {
+                        for (const d of dirs) {
+                            if (!hasCell(bx + d.dx, by + d.dy, bz + d.dz)) {
+                                const pts = d.verts.map(v => project(bx + v[0], by + v[1], bz + v[2]));
+                                const avgZ = pts.reduce((s, p) => s + p.z, 0) / 4;
+                                faces.push({ pts, avgZ, shade: d.shade, rgb });
+                            }
+                        }
+                    }
+                }
+
+                faces.sort((a, b) => a.avgZ - b.avgZ);
+
+                for (const face of faces) {
+                    const s = face.shade;
+                    sCtx.fillStyle = `rgb(${Math.round(face.rgb.r * s)},${Math.round(face.rgb.g * s)},${Math.round(face.rgb.b * s)})`;
+                    sCtx.strokeStyle = '#222'; sCtx.lineWidth = 0.8;
+                    sCtx.beginPath();
+                    sCtx.moveTo(face.pts[0].x, face.pts[0].y);
+                    for (let i = 1; i < face.pts.length; i++) sCtx.lineTo(face.pts[i].x, face.pts[i].y);
+                    sCtx.closePath(); sCtx.fill(); sCtx.stroke();
+                }
+            }
+
+            drawSolution();
+
+            // 拖拽旋转
+            cvs.addEventListener('mousedown', e => { solDragging = true; solDragX = e.clientX; solDragY = e.clientY; });
+            window.addEventListener('mousemove', e => {
+                if (!solDragging) return;
+                solRotY += (e.clientX - solDragX) * 0.01;
+                solRotX += (e.clientY - solDragY) * 0.01;
+                solRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, solRotX));
+                solDragX = e.clientX; solDragY = e.clientY;
+                drawSolution();
+            });
+            window.addEventListener('mouseup', () => solDragging = false);
         }
     </script>
 </body>
