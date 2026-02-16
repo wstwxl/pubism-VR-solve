@@ -2,9 +2,11 @@
 
 用多块三维积木拼出一个目标结构的自动求解器。内置可视化编辑器和 DLX 精确覆盖算法。
 
+**在线体验**：[https://wstwxl.github.io/pubism-VR-solve/](https://wstwxl.github.io/pubism-VR-solve/)
+
 ## 功能
 
-- **可视化编辑器** (`editor.html`)：在浏览器中逐层绘制积木和目标结构，支持 3D 预览、鼠标旋转、JSON 导入导出
+- **可视化编辑器**：在浏览器中逐层绘制积木和目标结构，支持 3D 预览、鼠标旋转、JSON 导入导出
 - **DLX 求解器**：基于 Knuth 的 Algorithm X + Dancing Links，高效求解精确覆盖问题
 - **3D 结果展示**：matplotlib 渲染拼装结果，每块积木不同颜色
 
@@ -12,7 +14,7 @@
 
 ### 方式一：网页编辑器（推荐）
 
-直接双击打开 `editor.html`，或访问在线版本。
+直接打开 `index.html` 或访问在线版本。
 
 1. **编辑积木**：在"编辑积木"模式下逐块创建积木形状
 2. **编辑目标**：切换到"编辑目标"模式，画出目标结构
@@ -39,7 +41,7 @@ pip install numpy matplotlib
 ## 项目结构
 
 ```
-├── editor.html          # 网页可视化编辑器
+├── index.html           # 网页可视化编辑器（主页面）
 ├── solve_from_json.py   # 从 JSON 文件读取并求解
 ├── main.py              # 入口（内置 Soma Cube 示例）
 ├── solver.py            # DLX 精确覆盖求解器
