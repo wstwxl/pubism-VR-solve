@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三维积木编辑器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg-primary:#0f0f1a;--bg-secondary:#1a1a2e;--bg-card:#16213e;--bg-hover:#1f3460;--accent:#6c63ff;--accent-glow:rgba(108,99,255,0.3);--text-primary:#e8e8f0;--text-secondary:#8888aa;--border:#2a2a4a;--success:#00c853;--warning:#ff9100;--danger:#ff3d71}
+body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);overflow:hidden;height:100vh}
+.header{height:52px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;z-index:100}
+.header h1{font-size:16px;font-weight:600;background:linear-gradient(135deg,#6c63ff,#48c6ef);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .separator{width:1px;height:24px;background:var(--border)}
+.mode-tabs{display:flex;gap:4px}
+.mode-tab{padding:6px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-secondary);border:1px solid transparent;transition:all .2s}
+.mode-tab:hover{background:var(--bg-hover);color:var(--text-primary)}
+.mode-tab.active{background:var(--accent);color:white;border-color:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.header-right{margin-left:auto;display:flex;gap:8px}
+.btn{padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg-hover);border-color:var(--accent)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:white}
+.btn-primary:hover{background:#5a52e0;box-shadow:0 0 16px var(--accent-glow)}
+.btn-success{background:#1b5e20;border-color:var(--success);color:var(--success)}
+.btn-success:hover{background:#2e7d32}
+.btn-danger{background:#4a0e1e;border-color:var(--danger);color:var(--danger)}
+.btn-danger:hover{background:#6a1b2a}
+.main-layout{display:flex;height:calc(100vh - 52px)}
+.sidebar{width:280px;background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.sidebar-section{padding:16px;border-bottom:1px solid var(--border)}
+.sidebar-section h3{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-secondary);margin-bottom:12px}
+.piece-list{display:flex;flex-direction:column;gap:6px}
+.piece-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all .2s}
+.piece-item:hover{background:var(--bg-hover)}
+.piece-item.active{background:var(--bg-card);border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.piece-color-dot{width:16px;height:16px;border-radius:4px;flex-shrink:0}
+.piece-info{flex:1;min-width:0}
+.piece-name{font-size:13px;font-weight:500}
+.piece-cells{font-size:11px;color:var(--text-secondary)}
+.piece-actions{display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.piece-item:hover .piece-actions{opacity:1}
+.piece-action-btn{width:24px;height:24px;border-radius:4px;border:none;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.piece-action-btn:hover{background:var(--danger);color:white}
+.add-piece-btn{width:100%;padding:8px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;transition:all .2s;margin-top:8px}
+.add-piece-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(108,99,255,0.05)}
+.grid-controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.grid-control{display:flex;flex-direction:column;gap:4px}
+.grid-control label{font-size:11px;color:var(--text-secondary)}
+.grid-control input{width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;text-align:center}
+.grid-control input:focus{outline:none;border-color:var(--accent)}
+.layer-control{display:flex;align-items:center;gap:12px;margin-top:12px}
+.layer-btn{width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.layer-btn:hover{background:var(--accent);border-color:var(--accent)}
+.layer-display{font-size:14px;font-weight:500;flex:1;text-align:center}
+.layer-display span{color:var(--accent)}
+.canvas-area{flex:1;display:flex;flex-direction:column;position:relative}
+.canvas-toolbar{height:40px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px}
+.tool-btn{padding:5px 10px;border-radius:5px;font-size:12px;cursor:pointer;background:transparent;color:var(--text-secondary);border:1px solid transparent;transition:all .15s}
+.tool-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.tool-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
+.canvas-container{flex:1;position:relative;overflow:hidden}
+#gridCanvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.right-panel{width:260px;background:var(--bg-secondary);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.color-palette{display:flex;flex-wrap:wrap;gap:6px}
+.color-swatch{width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.color-swatch:hover{transform:scale(1.15)}
+.color-swatch.active{border-color:white;box-shadow:0 0 8px rgba(255,255,255,0.3)}
+.name-input{width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;margin-bottom:8px}
+.name-input:focus{outline:none;border-color:var(--accent)}
+.status-bar{height:28px;background:var(--bg-secondary);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;font-size:11px;color:var(--text-secondary);gap:16px}
+.status-item{display:flex;align-items:center;gap:4px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+.preview-3d{width:100%;aspect-ratio:1;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border);position:relative;overflow:hidden;cursor:grab}
+.preview-3d canvas{width:100%;height:100%}
+.preview-3d:active{cursor:grabbing}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-card{padding:10px;border-radius:8px;background:var(--bg-primary);border:1px solid var(--border);text-align:center}
+.stat-value{font-size:20px;font-weight:700;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:400px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.modal h2{font-size:16px;margin-bottom:16px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+textarea.json-output{width:100%;height:240px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:#48c6ef;font-family:'Consolas',monospace;font-size:12px;padding:12px;resize:vertical}
+textarea.json-output:focus{outline:none;border-color:var(--accent)}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#444}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>🧩 三维积木编辑器</h1>
+    <div class="separator"></div>
+    <div class="mode-tabs">
+        <div class="mode-tab active" data-mode="piece" onclick="switchMode('piece')">编辑积木</div>
+        <div class="mode-tab" data-mode="target" onclick="switchMode('target')">编辑目标</div>
+    </div>
+    <div class="header-right">
+        <button class="btn" onclick="importJSON()">📥 导入 JSON</button>
+        <button class="btn btn-primary" onclick="exportJSON()">📤 导出 JSON</button>
+        <button class="btn btn-success" onclick="exportAndSolve()">▶ 导出并求解</button>
+    </div>
+</div>
+<div class="main-layout">
+    <div class="sidebar">
+        <div class="sidebar-section" id="pieceListSection">
+            <h3>积木列表</h3>
+            <div class="piece-list" id="pieceList"></div>
+            <button class="add-piece-btn" onclick="addNewPiece()">+ 添加新积木</button>
+        </div>
+        <div class="sidebar-section">
+            <h3>编辑网格尺寸</h3>
+            <div class="grid-controls">
+                <div class="grid-control"><label>X 宽</label><input type="number" id="gridX" value="5" min="1" max="20" onchange="onGridSizeChange()"></div>
+                <div class="grid-control"><label>Y 深</label><input type="number" id="gridY" value="5" min="1" max="20" onchange="onGridSizeChange()"></div>
+                <div class="grid-control"><label>Z 高</label><input type="number" id="gridZ" value="5" min="1" max="20" onchange="onGridSizeChange()"></div>
+            </div>
+            <div class="layer-control">
+                <button class="layer-btn" onclick="changeLayer(-1)">▼</button>
+                <div class="layer-display">Z 层: <span id="currentLayerDisplay">1</span> / <span id="totalLayerDisplay">5</span></div>
+                <button class="layer-btn" onclick="changeLayer(1)">▲</button>
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <h3>统计</h3>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-value" id="statPieceCount">0</div><div class="stat-label">积木数</div></div>
+                <div class="stat-card"><div class="stat-value" id="statPieceCells">0</div><div class="stat-label">积木总格数</div></div>
+                <div class="stat-card"><div class="stat-value" id="statTargetCells">0</div><div class="stat-label">目标格数</div></div>
+                <div class="stat-card"><div class="stat-value" id="statMatch">—</div><div class="stat-label">是否匹配</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="canvas-area">
+        <div class="canvas-toolbar">
+            <button class="tool-btn active" data-tool="draw" onclick="setTool('draw')">🖊 画笔</button>
+            <button class="tool-btn" data-tool="erase" onclick="setTool('erase')">🧹 橡皮</button>
+            <div class="separator" style="width:1px;height:20px;background:var(--border)"></div>
+            <button class="tool-btn" onclick="clearCurrentLayer()">清空本层</button>
+            <button class="tool-btn" onclick="clearAllLayers()">清空全部</button>
+            <button class="tool-btn" onclick="fillCurrentLayer()">填满本层</button>
+            <div style="flex:1"></div>
+            <span style="font-size:11px;color:var(--text-secondary)">左键绘制 / 右键擦除 / 滚轮切层</span>
+        </div>
+        <div class="canvas-container"><canvas id="gridCanvas"></canvas></div>
+    </div>
+    <div class="right-panel">
+        <div class="sidebar-section">
+            <h3 id="rightPanelTitle">当前积木</h3>
+            <input type="text" class="name-input" id="currentName" placeholder="名称..." onchange="onNameChange()">
+        </div>
+        <div class="sidebar-section"><h3>颜色</h3><div class="color-palette" id="colorPalette"></div></div>
+        <div class="sidebar-section">
+            <h3>3D 预览 <span style="font-size:10px;color:var(--text-secondary);text-transform:none;letter-spacing:0">(拖拽旋转)</span></h3>
+            <div class="preview-3d"><canvas id="preview3dCanvas"></canvas></div>
+        </div>
+        <div class="sidebar-section" id="coordsSection">
+            <h3>坐标列表 (显示值从1开始)</h3>
+            <div id="coordsList" style="font-family:Consolas;font-size:11px;color:var(--text-secondary);max-height:120px;overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+<div class="status-bar">
+    <div class="status-item"><div class="status-dot"></div>就绪</div>
+    <div class="status-item" id="statusMode">模式: 编辑积木</div>
+    <div class="status-item" id="statusInfo"></div>
+</div>
+
+<script>
+// ============================================================
+// 全局状态
+// ============================================================
+const STATE = {
+    mode: 'piece',
+    currentTool: 'draw',
+    currentLayer: 0,       // 内部仍 0-based
+    gridSize: { x: 5, y: 5, z: 5 },
+    pieces: [],
+    activePieceIndex: -1,
+    targetCells: new Set(),
+    targetColor: '#6c63ff',
+    // 3D 预览旋转角度
+    previewRotX: -0.5,
+    previewRotY: 0.6,
+};
+
+const COLORS = [
+    '#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6',
+    '#1abc9c','#e67e22','#d35400','#e84393','#6c5ce7',
+    '#00b894','#fdcb6e','#ff7675','#74b9ff','#a29bfe',
+    '#fab1a0','#81ecec','#ffeaa7','#dfe6e9','#636e72',
+];
+
+let canvas, ctx, previewCanvas, previewCtx;
+let isDrawing = false;
+let cellSize = 36, gridOffsetX = 0, gridOffsetY = 0;
+let prevDragging = false, prevDragX = 0, prevDragY = 0;
+
+// ============================================================
+// 初始化
+// ============================================================
+window.addEventListener('load', () => {
+    canvas = document.getElementById('gridCanvas');
+    ctx = canvas.getContext('2d');
+    previewCanvas = document.getElementById('preview3dCanvas');
+    previewCtx = previewCanvas.getContext('2d');
+    initColorPalette();
+    addNewPiece();
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    canvas.addEventListener('mousedown', onCanvasMouseDown);
+    canvas.addEventListener('mousemove', onCanvasMouseMove);
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mouseleave', () => isDrawing = false);
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('wheel', onCanvasWheel);
+    // 3D 预览拖拽旋转
+    previewCanvas.addEventListener('mousedown', e => { prevDragging = true; prevDragX = e.clientX; prevDragY = e.clientY; });
+    window.addEventListener('mousemove', e => {
+        if (!prevDragging) return;
+        STATE.previewRotY += (e.clientX - prevDragX) * 0.01;
+        STATE.previewRotX += (e.clientY - prevDragY) * 0.01;
+        STATE.previewRotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, STATE.previewRotX));
+        prevDragX = e.clientX; prevDragY = e.clientY;
+        render3DPreview();
+    });
+    window.addEventListener('mouseup', () => prevDragging = false);
+    render();
+});
+
+function resizeCanvas() {
+    const c1 = canvas.parentElement;
+    canvas.width = c1.clientWidth * devicePixelRatio;
+    canvas.height = c1.clientHeight * devicePixelRatio;
+    canvas.style.width = c1.clientWidth + 'px';
+    canvas.style.height = c1.clientHeight + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    const c2 = previewCanvas.parentElement;
+    previewCanvas.width = c2.clientWidth * devicePixelRatio;
+    previewCanvas.height = c2.clientHeight * devicePixelRatio;
+    previewCanvas.style.width = c2.clientWidth + 'px';
+    previewCanvas.style.height = c2.clientHeight + 'px';
+    previewCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    calculateGridLayout();
+    render();
+}
+
+function calculateGridLayout() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    cellSize = Math.min(Math.floor((w - 80) / STATE.gridSize.x), Math.floor((h - 80) / STATE.gridSize.y), 50);
+    cellSize = Math.max(cellSize, 16);
+    gridOffsetX = Math.floor((w - STATE.gridSize.x * cellSize) / 2);
+    gridOffsetY = Math.floor((h - STATE.gridSize.y * cellSize) / 2);
+}
+
+function initColorPalette() {
+    const p = document.getElementById('colorPalette');
+    p.innerHTML = '';
+    COLORS.forEach((c, i) => {
+        const s = document.createElement('div');
+        s.className = 'color-swatch' + (i === 0 ? ' active' : '');
+        s.style.background = c; s.dataset.color = c;
+        s.onclick = () => selectColor(c);
+        p.appendChild(s);
+    });
+}
+
+function selectColor(color) {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === color));
+    if (STATE.mode === 'piece' && STATE.activePieceIndex >= 0) { STATE.pieces[STATE.activePieceIndex].color = color; renderPieceList(); render(); }
+    else if (STATE.mode === 'target') { STATE.targetColor = color; render(); }
+}
+
+function switchMode(mode) {
+    STATE.mode = mode;
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    document.getElementById('statusMode').textContent = mode === 'piece' ? '模式: 编辑积木' : '模式: 编辑目标';
+    document.getElementById('rightPanelTitle').textContent = mode === 'piece' ? '当前积木' : '目标结构';
+    document.getElementById('pieceListSection').classList.toggle('hidden', mode === 'target');
+    if (mode === 'piece' && STATE.activePieceIndex >= 0) document.getElementById('currentName').value = STATE.pieces[STATE.activePieceIndex].name;
+    else if (mode === 'target') document.getElementById('currentName').value = '目标结构';
+    render();
+}
+
+// ============================================================
+// 积木管理
+// ============================================================
+function addNewPiece() {
+    const idx = STATE.pieces.length;
+    STATE.pieces.push({ name: `积木${idx + 1}`, color: COLORS[idx % COLORS.length], cells: new Set() });
+    STATE.activePieceIndex = idx;
+    renderPieceList(); selectPiece(idx); updateStats();
+}
+function selectPiece(idx) {
+    STATE.activePieceIndex = idx; STATE.mode = 'piece'; switchMode('piece');
+    document.getElementById('currentName').value = STATE.pieces[idx].name;
+    selectColor(STATE.pieces[idx].color); renderPieceList(); render();
+}
+function deletePiece(idx) {
+    STATE.pieces.splice(idx, 1);
+    if (STATE.activePieceIndex >= STATE.pieces.length) STATE.activePieceIndex = STATE.pieces.length - 1;
+    if (STATE.pieces.length === 0) { addNewPiece(); return; }
+    selectPiece(STATE.activePieceIndex); updateStats();
+}
+function renderPieceList() {
+    const list = document.getElementById('pieceList'); list.innerHTML = '';
+    STATE.pieces.forEach((piece, idx) => {
+        const div = document.createElement('div');
+        div.className = 'piece-item' + (idx === STATE.activePieceIndex ? ' active' : '');
+        div.innerHTML = `<div class="piece-color-dot" style="background:${piece.color}"></div><div class="piece-info"><div class="piece-name">${piece.name}</div><div class="piece-cells">${piece.cells.size} 格</div></div><div class="piece-actions"><button class="piece-action-btn" title="删除">✕</button></div>`;
+        div.querySelector('.piece-info').onclick = () => selectPiece(idx);
+        div.querySelector('.piece-color-dot').onclick = () => selectPiece(idx);
+        div.querySelector('.piece-action-btn').onclick = e => { e.stopPropagation(); deletePiece(idx); };
+        list.appendChild(div);
+    });
+}
+function onNameChange() {
+    if (STATE.mode === 'piece' && STATE.activePieceIndex >= 0) { STATE.pieces[STATE.activePieceIndex].name = document.getElementById('currentName').value; renderPieceList(); }
+}
+
+// ============================================================
+// 网格和层控制 (内部 0-based, 显示 1-based)
+// ============================================================
+function onGridSizeChange() {
+    STATE.gridSize.x = parseInt(document.getElementById('gridX').value) || 5;
+    STATE.gridSize.y = parseInt(document.getElementById('gridY').value) || 5;
+    STATE.gridSize.z = parseInt(document.getElementById('gridZ').value) || 5;
+    if (STATE.currentLayer >= STATE.gridSize.z) STATE.currentLayer = STATE.gridSize.z - 1;
+    updateLayerDisplay(); calculateGridLayout(); render();
+}
+function changeLayer(delta) {
+    STATE.currentLayer = Math.max(0, Math.min(STATE.gridSize.z - 1, STATE.currentLayer + delta));
+    updateLayerDisplay(); render();
+}
+function updateLayerDisplay() {
+    document.getElementById('currentLayerDisplay').textContent = STATE.currentLayer + 1; // 显示从1开始
+    document.getElementById('totalLayerDisplay').textContent = STATE.gridSize.z;
+}
+
+function setTool(tool) { STATE.currentTool = tool; document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool)); }
+function getCurrentCells() { return (STATE.mode === 'piece' && STATE.activePieceIndex >= 0) ? STATE.pieces[STATE.activePieceIndex].cells : STATE.targetCells; }
+
+function clearCurrentLayer() { const cells = getCurrentCells(); const z = STATE.currentLayer; for (const k of [...cells]) { if (parseInt(k.split(',')[2]) === z) cells.delete(k); } render(); updateStats(); }
+function clearAllLayers() { getCurrentCells().clear(); render(); updateStats(); }
+function fillCurrentLayer() { const cells = getCurrentCells(); const z = STATE.currentLayer; for (let x=0;x<STATE.gridSize.x;x++) for (let y=0;y<STATE.gridSize.y;y++) cells.add(`${x},${y},${z}`); render(); updateStats(); }
+
+// ============================================================
+// 画布交互 — Y 轴翻转：屏幕底部=Y小(近), 顶部=Y大(远)
+// ============================================================
+function getGridCell(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const gx = Math.floor((mx - gridOffsetX) / cellSize);
+    const screenRow = Math.floor((my - gridOffsetY) / cellSize);
+    // 翻转 Y：屏幕第0行 = Y最大值, 屏幕最后一行 = Y=0
+    const gy = STATE.gridSize.y - 1 - screenRow;
+    if (gx >= 0 && gx < STATE.gridSize.x && gy >= 0 && gy < STATE.gridSize.y) return { x: gx, y: gy, z: STATE.currentLayer };
+    return null;
+}
+
+function onCanvasMouseDown(e) {
+    e.preventDefault(); const cell = getGridCell(e); if (!cell) return;
+    isDrawing = true; const key = `${cell.x},${cell.y},${cell.z}`; const cells = getCurrentCells();
+    if (e.button === 2 || STATE.currentTool === 'erase') cells.delete(key); else cells.add(key);
+    render(); updateStats();
+}
+function onCanvasMouseMove(e) {
+    if (!isDrawing) { render(); highlightCell(e); return; }
+    const cell = getGridCell(e); if (!cell) return;
+    const key = `${cell.x},${cell.y},${cell.z}`; const cells = getCurrentCells();
+    if (e.buttons === 2 || STATE.currentTool === 'erase') cells.delete(key); else cells.add(key);
+    render(); updateStats();
+}
+function onCanvasWheel(e) { e.preventDefault(); changeLayer(e.deltaY > 0 ? -1 : 1); }
+function highlightCell(e) {
+    const cell = getGridCell(e); if (!cell) return;
+    // 翻转回屏幕坐标
+    const screenRow = STATE.gridSize.y - 1 - cell.y;
+    ctx.strokeStyle = 'rgba(108,99,255,0.8)'; ctx.lineWidth = 2;
+    ctx.strokeRect(gridOffsetX + cell.x * cellSize + 1, gridOffsetY + screenRow * cellSize + 1, cellSize - 2, cellSize - 2);
+}
+
+// ============================================================
+// 渲染 2D 网格 — Y 轴翻转
+// ============================================================
+function render() { renderGrid(); render3DPreview(); updateCoordsList(); }
+
+function renderGrid() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+    const gx = STATE.gridSize.x, gy = STATE.gridSize.y, z = STATE.currentLayer;
+    ctx.fillStyle = '#0a0a14'; ctx.fillRect(0, 0, w, h);
+
+    // 其他层投影
+    const ghostCells = STATE.mode === 'piece' && STATE.activePieceIndex >= 0 ? STATE.pieces[STATE.activePieceIndex].cells : STATE.targetCells;
+    for (const key of ghostCells) {
+        const [cx, cy, cz] = key.split(',').map(Number);
+        if (cz !== z && cx < gx && cy < gy) {
+            const sr = gy - 1 - cy; // 翻转Y
+            ctx.fillStyle = 'rgba(100,100,150,0.15)';
+            ctx.fillRect(gridOffsetX + cx * cellSize, gridOffsetY + sr * cellSize, cellSize, cellSize);
+        }
+    }
+
+    // 网格线
+    ctx.strokeStyle = '#1e1e3a'; ctx.lineWidth = 1;
+    for (let x = 0; x <= gx; x++) { ctx.beginPath(); ctx.moveTo(gridOffsetX + x*cellSize, gridOffsetY); ctx.lineTo(gridOffsetX + x*cellSize, gridOffsetY + gy*cellSize); ctx.stroke(); }
+    for (let y = 0; y <= gy; y++) { ctx.beginPath(); ctx.moveTo(gridOffsetX, gridOffsetY + y*cellSize); ctx.lineTo(gridOffsetX + gx*cellSize, gridOffsetY + y*cellSize); ctx.stroke(); }
+
+    // 当前层填充格
+    const color = (STATE.mode === 'piece' && STATE.activePieceIndex >= 0) ? STATE.pieces[STATE.activePieceIndex].color : STATE.targetColor;
+    for (const key of getCurrentCells()) {
+        const [cx, cy, cz] = key.split(',').map(Number);
+        if (cz === z && cx < gx && cy < gy) {
+            const sr = gy - 1 - cy;
+            ctx.fillStyle = color;
+            ctx.fillRect(gridOffsetX + cx*cellSize + 1, gridOffsetY + sr*cellSize + 1, cellSize - 2, cellSize - 2);
+        }
+    }
+
+    // 坐标标注 — 从1开始, Y轴翻转
+    ctx.fillStyle = '#555'; ctx.font = '10px Inter';
+    ctx.textAlign = 'center';
+    for (let x = 0; x < gx; x++) ctx.fillText(x + 1, gridOffsetX + x*cellSize + cellSize/2, gridOffsetY - 6);
+    ctx.textAlign = 'right';
+    for (let row = 0; row < gy; row++) {
+        const yVal = gy - row; // 顶部=Y最大, 底部=Y=1
+        ctx.fillText(yVal, gridOffsetX - 6, gridOffsetY + row*cellSize + cellSize/2 + 4);
+    }
+
+    // 层标签
+    ctx.fillStyle = '#8888aa'; ctx.font = '13px Inter'; ctx.textAlign = 'left';
+    ctx.fillText(`Z = ${z + 1}`, gridOffsetX, gridOffsetY + gy*cellSize + 20);
+    // 方向提示
+    ctx.fillStyle = '#555'; ctx.font = '10px Inter'; ctx.textAlign = 'center';
+    ctx.fillText('← X →', gridOffsetX + gx*cellSize/2, gridOffsetY - 18);
+    ctx.save(); ctx.translate(gridOffsetX - 20, gridOffsetY + gy*cellSize/2);
+    ctx.rotate(-Math.PI/2); ctx.fillText('← Y(近→远) →', 0, 0); ctx.restore();
+}
+
+// ============================================================
+// 3D 预览 — 支持鼠标拖拽旋转, 实体方块渲染
+// ============================================================
+function render3DPreview() {
+    const w = previewCanvas.clientWidth, h = previewCanvas.clientHeight;
+    previewCtx.clearRect(0, 0, w, h);
+    previewCtx.fillStyle = '#0a0a14'; previewCtx.fillRect(0, 0, w, h);
+    const cells = getCurrentCells();
+    if (cells.size === 0) return;
+    const color = (STATE.mode === 'piece' && STATE.activePieceIndex >= 0) ? STATE.pieces[STATE.activePieceIndex].color : STATE.targetColor;
+
+    const maxDim = Math.max(STATE.gridSize.x, STATE.gridSize.y, STATE.gridSize.z);
+    const scale = Math.min(w, h) / (maxDim * 2.2);
+    const cx = STATE.gridSize.x / 2, cy = STATE.gridSize.y / 2, cz = STATE.gridSize.z / 2;
+    const rotX = STATE.previewRotX, rotY = STATE.previewRotY;
+
+    // 3D→2D 投影（绕中心旋转）
+    function project(x, y, z) {
+        let dx = x - cx, dy = y - cy, dz = z - cz;
+        // 绕 Y 轴旋转
+        let nx = dx * Math.cos(rotY) + dz * Math.sin(rotY);
+        let nz = -dx * Math.sin(rotY) + dz * Math.cos(rotY);
+        dx = nx; dz = nz;
+        // 绕 X 轴旋转
+        let ny = dy * Math.cos(rotX) - dz * Math.sin(rotX);
+        nz = dy * Math.sin(rotX) + dz * Math.cos(rotX);
+        dy = ny; dz = nz;
+        return { x: dx * scale + w/2, y: -dy * scale + h/2, z: dz };
+    }
+
+    // 检查某个位置是否有方块
+    const cellSet = new Set(cells);
+    function hasCell(x, y, z) { return cellSet.has(`${x},${y},${z}`); }
+
+    // 收集所有可见的面
+    const faces = [];
+    for (const key of cells) {
+        const [bx, by, bz] = key.split(',').map(Number);
+        // 6个面，只绘制暴露在外的面（相邻无方块）
+        const dirs = [
+            { dx:0, dy:0, dz:1, verts:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]], shade:1.0 },   // 顶 +Z
+            { dx:0, dy:0, dz:-1, verts:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]], shade:0.5 },  // 底 -Z
+            { dx:0, dy:1, dz:0, verts:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]], shade:0.7 },   // 后 +Y
+            { dx:0, dy:-1, dz:0, verts:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]], shade:0.8 },  // 前 -Y
+            { dx:1, dy:0, dz:0, verts:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]], shade:0.65 },  // 右 +X
+            { dx:-1, dy:0, dz:0, verts:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]], shade:0.75 }, // 左 -X
+        ];
+        for (const d of dirs) {
+            if (!hasCell(bx+d.dx, by+d.dy, bz+d.dz)) {
+                const pts = d.verts.map(v => project(bx+v[0], by+v[1], bz+v[2]));
+                const avgZ = pts.reduce((s, p) => s + p.z, 0) / 4;
+                faces.push({ pts, avgZ, shade: d.shade });
+            }
+        }
+    }
+
+    // 画家算法排序：远的先画
+    faces.sort((a, b) => a.avgZ - b.avgZ);
+
+    const rgb = hexToRgb(color);
+    for (const face of faces) {
+        const s = face.shade;
+        previewCtx.fillStyle = `rgb(${Math.round(rgb.r*s)},${Math.round(rgb.g*s)},${Math.round(rgb.b*s)})`;
+        previewCtx.strokeStyle = '#222'; previewCtx.lineWidth = 0.8;
+        previewCtx.beginPath();
+        previewCtx.moveTo(face.pts[0].x, face.pts[0].y);
+        for (let i = 1; i < face.pts.length; i++) previewCtx.lineTo(face.pts[i].x, face.pts[i].y);
+        previewCtx.closePath(); previewCtx.fill(); previewCtx.stroke();
+    }
+}
+
+function hexToRgb(hex) {
+    const n = parseInt(hex.replace('#',''), 16);
+    return { r: (n>>16)&0xFF, g: (n>>8)&0xFF, b: n&0xFF };
+}
+
+// ============================================================
+// 坐标列表与统计 — 显示值从1开始
+// ============================================================
+function updateCoordsList() {
+    const cells = getCurrentCells();
+    const d = document.getElementById('coordsList');
+    if (cells.size === 0) { d.textContent = '(空)'; return; }
+    const sorted = [...cells].sort().map(k => {
+        const [x,y,z] = k.split(',').map(Number);
+        return `(${x+1},${y+1},${z+1})`;
+    });
+    d.textContent = sorted.join(', ');
+}
+
+function updateStats() {
+    const pc = STATE.pieces.reduce((s, p) => s + p.cells.size, 0);
+    document.getElementById('statPieceCount').textContent = STATE.pieces.length;
+    document.getElementById('statPieceCells').textContent = pc;
+    document.getElementById('statTargetCells').textContent = STATE.targetCells.size;
+    const el = document.getElementById('statMatch');
+    if (STATE.targetCells.size === 0) { el.textContent = '—'; el.style.color = ''; }
+    else if (pc === STATE.targetCells.size) { el.textContent = '✓'; el.style.color = 'var(--success)'; }
+    else { el.textContent = '✗'; el.style.color = 'var(--danger)'; }
+}
+
+// ============================================================
+// 导入/导出 JSON
+// ============================================================
+function buildJSONData() {
+    return {
+        pieces: STATE.pieces.map(p => ({ name: p.name, color: p.color, cells: [...p.cells].map(k => k.split(',').map(Number)) })),
+        target: { cells: [...STATE.targetCells].map(k => k.split(',').map(Number)) }
+    };
+}
+
+function exportJSON() {
+    const json = JSON.stringify(buildJSONData(), null, 2);
+    const ov = document.createElement('div'); ov.className = 'modal-overlay';
+    ov.innerHTML = `<div class="modal"><h2>📤 导出 JSON</h2><textarea class="json-output" readonly>${json}</textarea><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">关闭</button><button class="btn" onclick="downloadJSON()">💾 下载文件</button><button class="btn btn-primary" onclick="copyJSON()">📋 复制</button></div></div>`;
+    document.body.appendChild(ov); ov.querySelector('textarea').select();
+}
+
+function copyJSON() {
+    document.querySelector('.modal textarea').select(); document.execCommand('copy');
+    const b = document.querySelector('.modal .btn-primary'); b.textContent = '✓ 已复制'; setTimeout(() => b.textContent = '📋 复制', 1500);
+}
+
+function downloadJSON() {
+    const json = JSON.stringify(buildJSONData(), null, 2);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json], {type:'application/json'})); a.download = 'puzzle_data.json'; a.click();
+}
+
+function importJSON() {
+    const ov = document.createElement('div'); ov.className = 'modal-overlay';
+    ov.innerHTML = `<div class="modal"><h2>📥 导入 JSON</h2><p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">粘贴之前导出的 JSON 数据：</p><textarea class="json-output" id="importTextarea" placeholder="在此粘贴 JSON ..."></textarea><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">取消</button><button class="btn btn-primary" onclick="doImport()">确认导入</button></div></div>`;
+    document.body.appendChild(ov);
+}
+
+function doImport() {
+    try { loadFromJSON(JSON.parse(document.getElementById('importTextarea').value)); document.querySelector('.modal-overlay').remove(); }
+    catch (e) { alert('JSON 格式错误: ' + e.message); }
+}
+
+function loadFromJSON(data) {
+    STATE.pieces = (data.pieces || []).map(p => ({ name: p.name || '未命名', color: p.color || '#e74c3c', cells: new Set((p.cells || []).map(c => c.join(','))) }));
+    STATE.targetCells = new Set((data.target?.cells || []).map(c => c.join(',')));
+    const all = [...STATE.pieces.flatMap(p => [...p.cells]), ...STATE.targetCells];
+    if (all.length > 0) {
+        let mx=0, my=0, mz=0;
+        for (const k of all) { const [x,y,z]=k.split(',').map(Number); mx=Math.max(mx,x); my=Math.max(my,y); mz=Math.max(mz,z); }
+        STATE.gridSize.x = Math.max(mx+2, 3); STATE.gridSize.y = Math.max(my+2, 3); STATE.gridSize.z = Math.max(mz+2, 3);
+        document.getElementById('gridX').value = STATE.gridSize.x;
+        document.getElementById('gridY').value = STATE.gridSize.y;
+        document.getElementById('gridZ').value = STATE.gridSize.z;
+    }
+    STATE.currentLayer = 0; STATE.activePieceIndex = STATE.pieces.length > 0 ? 0 : -1;
+    if (STATE.pieces.length === 0) addNewPiece();
+    updateLayerDisplay(); renderPieceList(); calculateGridLayout(); updateStats(); render();
+    if (STATE.activePieceIndex >= 0) selectPiece(0);
+}
+
+function exportAndSolve() {
+    const data = buildJSONData();
+    const pc = data.pieces.reduce((s, p) => s + p.cells.length, 0);
+    if (data.target.cells.length === 0) { alert('请先编辑目标结构！'); return; }
+    if (pc === 0) { alert('请先编辑至少一块积木！'); return; }
+    if (pc !== data.target.cells.length && !confirm(`积木总格数 (${pc}) ≠ 目标格数 (${data.target.cells.length})，确定继续？`)) return;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'})); a.download = 'puzzle_data.json'; a.click();
+    const ov = document.createElement('div'); ov.className = 'modal-overlay';
+    ov.innerHTML = `<div class="modal"><h2>▶ 导出并求解</h2><p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">已下载 <code>puzzle_data.json</code>，请将它放到积木求解目录下，然后运行：</p><textarea class="json-output" readonly style="height:60px;color:#2ecc71">python solve_from_json.py puzzle_data.json</textarea><p style="margin-top:12px;color:var(--text-secondary);font-size:12px">积木数: ${data.pieces.length} | 积木总格数: ${pc} | 目标格数: ${data.target.cells.length}</p><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">关闭</button></div></div>`;
+    document.body.appendChild(ov);
+}
+</script>
+</body>
+</html>
